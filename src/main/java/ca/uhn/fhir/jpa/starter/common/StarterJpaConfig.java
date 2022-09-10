@@ -6,7 +6,8 @@ import ca.uhn.fhir.context.ConfigurationException;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.context.FhirVersionEnum;
 import ca.uhn.fhir.context.support.IValidationSupport;
-import ca.uhn.fhir.interceptor.api.IInterceptorBroadcaster;
+import ca.uhn.fhir.interceptor.api.IInterceptorService;
+import ca.uhn.fhir.interceptor.executor.InterceptorService;
 import ca.uhn.fhir.jpa.api.IDaoRegistry;
 import ca.uhn.fhir.jpa.api.config.DaoConfig;
 import ca.uhn.fhir.jpa.api.dao.DaoRegistry;
@@ -59,6 +60,7 @@ import com.google.common.collect.ImmutableList;
 import org.hl7.fhir.common.hapi.validation.support.CachingValidationSupport;
 import org.springframework.batch.core.configuration.annotation.BatchConfigurer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -218,9 +220,139 @@ public class StarterJpaConfig {
 
 	}
 
+	@Bean(name = "RestfulServerInterceptorService")
+	@Primary
+	public IInterceptorService iInterceptorService(AppProperties appProperties,
+																  FhirContext fhirContext,
+																  DaoRegistry daoRegistry,
+																  LoggingInterceptor loggingInterceptor,
+																  Optional<CorsInterceptor> corsInterceptor,
+																  Optional<RepositoryValidatingInterceptor> repositoryValidatingInterceptor) {
+
+		InterceptorService interceptorService = new InterceptorService("RestfulServer");
+
+		/*
+		 * This interceptor formats the output using nice colourful
+		 * HTML output when the request is detected to come from a
+		 * browser.
+		 */
+		interceptorService.registerInterceptor(new ResponseHighlighterInterceptor());
+
+		if (appProperties.getFhirpath_interceptor_enabled()) {
+			interceptorService.registerInterceptor(new FhirPathFilterInterceptor());
+		}
+
+		interceptorService.registerInterceptor(loggingInterceptor);
+
+		corsInterceptor.ifPresent(interceptorService::registerInterceptor);
+
+		if (appProperties.getSubscription() != null) {
+			// Subscription debug logging
+			interceptorService.registerInterceptor(new SubscriptionDebugLogInterceptor());
+		}
+
+		if (appProperties.getAllow_cascading_deletes()) {
+			CascadingDeleteInterceptor cascadingDeleteInterceptor = new CascadingDeleteInterceptor(fhirContext, daoRegistry, interceptorService);
+			interceptorService.registerInterceptor(cascadingDeleteInterceptor);
+		}
+
+		if (appProperties.getOpenapi_enabled()) {
+			interceptorService.registerInterceptor(new OpenApiInterceptor());
+		}
+
+		repositoryValidatingInterceptor.ifPresent(interceptorService::registerInterceptor);
+
+		return interceptorService;
+	}
+
+	@Bean(name = "providers")
+	public List<Object> providers(AppProperties appProperties,
+										 FhirContext fhirContext,
+										 IJpaSystemProvider jpaSystemProvider,
+										 ResourceProviderFactory resourceProviderFactory,
+										 BulkDataExportProvider bulkDataExportProvider,
+										 BulkDataImportProvider bulkDataImportProvider,
+										 ValueSetOperationProvider theValueSetOperationProvider,
+										 ReindexProvider reindexProvider,
+										 Optional<GraphQLProvider> graphQLProvider,
+										 Optional<TerminologyUploaderProvider> terminologyUploaderProvider,
+										 Optional<SubscriptionTriggeringProvider> subscriptionTriggeringProvider,
+										 Optional<MdmProviderLoader> mdmProviderProvider
+										 ){
+		List<Object> list = new ArrayList<>();
+
+		if (appProperties.getMdm_enabled()) mdmProviderProvider.get().loadProvider();
+		list.addAll(resourceProviderFactory.createProviders());
+		list.add(jpaSystemProvider);
+
+		/*
+		 * If you are using DSTU3+, you may want to add a terminology uploader, which allows
+		 * uploading of external terminologies such as Snomed CT. Note that this uploader
+		 * does not have any security attached (any anonymous user may use it by default)
+		 * so it is a potential security vulnerability. Consider using an AuthorizationInterceptor
+		 * with this feature.
+		 */
+		if (fhirContext.getVersion().getVersion().isEqualOrNewerThan(FhirVersionEnum.DSTU3)) { // <-- ENABLED RIGHT NOW
+			list.add(terminologyUploaderProvider.get());
+		}
+
+		// If you want to enable the $trigger-subscription operation to allow
+		// manual triggering of a subscription delivery, enable this provider
+		if (true) { // <-- ENABLED RIGHT NOW
+			list.add(subscriptionTriggeringProvider.get());
+		}
+
+
+		// GraphQL
+		if (appProperties.getGraphql_enabled()) {
+			if (fhirContext.getVersion().getVersion().isEqualOrNewerThan(FhirVersionEnum.DSTU3)) {
+				list.add(graphQLProvider.get());
+			}
+		}
+
+
+		// Bulk Export
+		if (appProperties.getBulk_export_enabled()) {
+			list.add(bulkDataExportProvider);
+		}
+
+		//Bulk Import
+		if (appProperties.getBulk_import_enabled()) {
+			list.add(bulkDataImportProvider);
+		}
+
+
+		// valueSet Operations i.e $expand
+		list.add(theValueSetOperationProvider);
+
+		//reindex Provider $reindex
+		list.add(reindexProvider);
+
+		return list;
+	}
+
 	@Bean
-	public RestfulServer restfulServer(IFhirSystemDao<?, ?> fhirSystemDao, AppProperties appProperties, DaoRegistry daoRegistry, Optional<MdmProviderLoader> mdmProviderProvider, IJpaSystemProvider jpaSystemProvider, ResourceProviderFactory resourceProviderFactory, DaoConfig daoConfig, ISearchParamRegistry searchParamRegistry, IValidationSupport theValidationSupport, DatabaseBackedPagingProvider databaseBackedPagingProvider, LoggingInterceptor loggingInterceptor, Optional<TerminologyUploaderProvider> terminologyUploaderProvider, Optional<SubscriptionTriggeringProvider> subscriptionTriggeringProvider, Optional<CorsInterceptor> corsInterceptor, IInterceptorBroadcaster interceptorBroadcaster, Optional<BinaryAccessProvider> binaryAccessProvider, BinaryStorageInterceptor binaryStorageInterceptor, IValidatorModule validatorModule, Optional<GraphQLProvider> graphQLProvider, BulkDataExportProvider bulkDataExportProvider, BulkDataImportProvider bulkDataImportProvider, ValueSetOperationProvider theValueSetOperationProvider, ReindexProvider reindexProvider, PartitionManagementProvider partitionManagementProvider, Optional<RepositoryValidatingInterceptor> repositoryValidatingInterceptor, IPackageInstallerSvc packageInstallerSvc) {
-		RestfulServer fhirServer = new RestfulServer(fhirSystemDao.getContext());
+	public RestfulServer restfulServer(AppProperties appProperties,
+												  IInterceptorService interceptorService,
+												  IFhirSystemDao<?, ?> fhirSystemDao,
+												  @Qualifier("providers") List<List<Object>> providers,
+												  DaoRegistry daoRegistry,
+												  IValidatorModule validatorModule,
+												  DaoConfig daoConfig,
+												  ISearchParamRegistry searchParamRegistry,
+												  IValidationSupport theValidationSupport,
+												  DatabaseBackedPagingProvider databaseBackedPagingProvider,
+												  BinaryStorageInterceptor binaryStorageInterceptor,
+												  PartitionManagementProvider partitionManagementProvider,
+												  Optional<BinaryAccessProvider> binaryAccessProvider,
+												  IPackageInstallerSvc packageInstallerSvc) {
+		RestfulServer fhirServer = new RestfulServer(fhirSystemDao.getContext(), interceptorService);
+
+		List<Object> flattenedProviders =
+			providers.stream()
+				.collect(ArrayList::new, List::addAll, List::addAll);
+
+		fhirServer.registerProviders(flattenedProviders);
 
 		List<String> supportedResourceTypes = appProperties.getSupported_resource_types();
 
@@ -237,10 +369,7 @@ public class StarterJpaConfig {
 			fhirSystemDao.getContext().setNarrativeGenerator(new NullNarrativeGenerator());
 		}
 
-		if (appProperties.getMdm_enabled()) mdmProviderProvider.get().loadProvider();
 
-		fhirServer.registerProviders(resourceProviderFactory.createProviders());
-		fhirServer.registerProvider(jpaSystemProvider);
 		fhirServer.setServerConformanceProvider(calculateConformanceProvider(fhirSystemDao, fhirServer, daoConfig, searchParamRegistry, theValidationSupport));
 
 		/*
@@ -269,18 +398,11 @@ public class StarterJpaConfig {
 
 		fhirServer.setPagingProvider(databaseBackedPagingProvider);
 
-		/*
-		 * This interceptor formats the output using nice colourful
-		 * HTML output when the request is detected to come from a
-		 * browser.
-		 */
-		fhirServer.registerInterceptor(new ResponseHighlighterInterceptor());
-
-		if (appProperties.getFhirpath_interceptor_enabled()) {
-			fhirServer.registerInterceptor(new FhirPathFilterInterceptor());
+		// Binary Storage
+		if (appProperties.getBinary_storage_enabled() && binaryAccessProvider.isPresent()) {
+			fhirServer.registerProvider(binaryAccessProvider.get());
+			fhirServer.registerInterceptor(binaryStorageInterceptor);
 		}
-
-		fhirServer.registerInterceptor(loggingInterceptor);
 
 		/*
 		 * If you are hosting this server at a specific DNS name, the server will try to
@@ -298,41 +420,6 @@ public class StarterJpaConfig {
 			fhirServer.setServerAddressStrategy(new IncomingRequestAddressStrategy());
 		}
 
-		/*
-		 * If you are using DSTU3+, you may want to add a terminology uploader, which allows
-		 * uploading of external terminologies such as Snomed CT. Note that this uploader
-		 * does not have any security attached (any anonymous user may use it by default)
-		 * so it is a potential security vulnerability. Consider using an AuthorizationInterceptor
-		 * with this feature.
-		 */
-		if (fhirSystemDao.getContext().getVersion().getVersion().isEqualOrNewerThan(FhirVersionEnum.DSTU3)) { // <-- ENABLED RIGHT NOW
-			fhirServer.registerProvider(terminologyUploaderProvider.get());
-		}
-
-		// If you want to enable the $trigger-subscription operation to allow
-		// manual triggering of a subscription delivery, enable this provider
-		if (true) { // <-- ENABLED RIGHT NOW
-			fhirServer.registerProvider(subscriptionTriggeringProvider.get());
-		}
-
-		corsInterceptor.ifPresent(fhirServer::registerInterceptor);
-
-		if (appProperties.getSubscription() != null) {
-			// Subscription debug logging
-			fhirServer.registerInterceptor(new SubscriptionDebugLogInterceptor());
-		}
-
-		if (appProperties.getAllow_cascading_deletes()) {
-			CascadingDeleteInterceptor cascadingDeleteInterceptor = new CascadingDeleteInterceptor(fhirSystemDao.getContext(), daoRegistry, interceptorBroadcaster);
-			fhirServer.registerInterceptor(cascadingDeleteInterceptor);
-		}
-
-		// Binary Storage
-		if (appProperties.getBinary_storage_enabled() && binaryAccessProvider.isPresent()) {
-			fhirServer.registerProvider(binaryAccessProvider.get());
-			fhirServer.registerInterceptor(binaryStorageInterceptor);
-		}
-
 		// Validation
 
 		if (validatorModule != null) {
@@ -340,43 +427,17 @@ public class StarterJpaConfig {
 				RequestValidatingInterceptor interceptor = new RequestValidatingInterceptor();
 				interceptor.setFailOnSeverity(ResultSeverityEnum.ERROR);
 				interceptor.setValidatorModules(Collections.singletonList(validatorModule));
-				fhirServer.registerInterceptor(interceptor);
+				fhirServer.getInterceptorService().registerInterceptor(interceptor);
 			}
 			if (appProperties.getValidation().getResponses_enabled()) {
 				ResponseValidatingInterceptor interceptor = new ResponseValidatingInterceptor();
 				interceptor.setFailOnSeverity(ResultSeverityEnum.ERROR);
 				interceptor.setValidatorModules(Collections.singletonList(validatorModule));
-				fhirServer.registerInterceptor(interceptor);
+				fhirServer.getInterceptorService().registerInterceptor(interceptor);
 			}
 		}
 
-		// GraphQL
-		if (appProperties.getGraphql_enabled()) {
-			if (fhirSystemDao.getContext().getVersion().getVersion().isEqualOrNewerThan(FhirVersionEnum.DSTU3)) {
-				fhirServer.registerProvider(graphQLProvider.get());
-			}
-		}
 
-		if (appProperties.getOpenapi_enabled()) {
-			fhirServer.registerInterceptor(new OpenApiInterceptor());
-		}
-
-		// Bulk Export
-		if (appProperties.getBulk_export_enabled()) {
-			fhirServer.registerProvider(bulkDataExportProvider);
-		}
-
-		//Bulk Import
-		if (appProperties.getBulk_import_enabled()) {
-			fhirServer.registerProvider(bulkDataImportProvider);
-		}
-
-
-		// valueSet Operations i.e $expand
-		fhirServer.registerProvider(theValueSetOperationProvider);
-
-		//reindex Provider $reindex
-		fhirServer.registerProvider(reindexProvider);
 
 		// Partitioning
 		if (appProperties.getPartitioning() != null) {
@@ -385,8 +446,6 @@ public class StarterJpaConfig {
 			fhirServer.registerProviders(partitionManagementProvider);
 		}
 
-
-		repositoryValidatingInterceptor.ifPresent(fhirServer::registerInterceptor);
 
 		if (appProperties.getImplementationGuides() != null) {
 			Map<String, AppProperties.ImplementationGuide> guides = appProperties.getImplementationGuides();
