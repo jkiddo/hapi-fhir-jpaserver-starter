@@ -224,10 +224,11 @@ public class StarterJpaConfig {
 	@Primary
 	public IInterceptorService iInterceptorService(AppProperties appProperties,
 																  FhirContext fhirContext,
+
 																  DaoRegistry daoRegistry,
 																  LoggingInterceptor loggingInterceptor,
-																  Optional<CorsInterceptor> corsInterceptor,
-																  Optional<RepositoryValidatingInterceptor> repositoryValidatingInterceptor) {
+																  Optional<CorsInterceptor> corsInterceptor
+																  ) {
 
 		InterceptorService interceptorService = new InterceptorService("RestfulServer");
 
@@ -260,7 +261,7 @@ public class StarterJpaConfig {
 			interceptorService.registerInterceptor(new OpenApiInterceptor());
 		}
 
-		repositoryValidatingInterceptor.ifPresent(interceptorService::registerInterceptor);
+
 
 		return interceptorService;
 	}
@@ -341,6 +342,7 @@ public class StarterJpaConfig {
 												  DaoConfig daoConfig,
 												  ISearchParamRegistry searchParamRegistry,
 												  IValidationSupport theValidationSupport,
+												  Optional<RepositoryValidatingInterceptor> repositoryValidatingInterceptor,
 												  DatabaseBackedPagingProvider databaseBackedPagingProvider,
 												  BinaryStorageInterceptor binaryStorageInterceptor,
 												  PartitionManagementProvider partitionManagementProvider,
@@ -353,6 +355,7 @@ public class StarterJpaConfig {
 				.collect(ArrayList::new, List::addAll, List::addAll);
 
 		fhirServer.registerProviders(flattenedProviders);
+		repositoryValidatingInterceptor.ifPresent(interceptorService::registerInterceptor);
 
 		List<String> supportedResourceTypes = appProperties.getSupported_resource_types();
 
