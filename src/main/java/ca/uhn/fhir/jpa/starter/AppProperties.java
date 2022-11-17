@@ -73,7 +73,7 @@ public class AppProperties {
   private Map<String, ImplementationGuide> implementationGuides = null;
 
 	private String staticLocation = null;
-	private String staticContentBase = null;
+	private String staticContentBase = "static";
 
   private Boolean lastn_enabled = false;
   private boolean store_resource_in_lucene_index_enabled = false;
