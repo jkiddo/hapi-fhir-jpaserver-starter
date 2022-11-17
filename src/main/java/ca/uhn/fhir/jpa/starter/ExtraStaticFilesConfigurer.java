@@ -16,7 +16,8 @@ public class ExtraStaticFilesConfigurer implements WebMvcConfigurer {
 	@Override
 	public void addResourceHandlers(ResourceHandlerRegistry theRegistry) {
 		theRegistry
-			.addResourceHandler("/static/**")
+			.addResourceHandler("/"+appProperties.getStaticContentBase()+"/**")
 		.addResourceLocations(appProperties.getStaticLocation());
 	}
 }
+

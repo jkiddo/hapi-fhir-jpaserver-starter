@@ -73,6 +73,7 @@ public class AppProperties {
   private Map<String, ImplementationGuide> implementationGuides = null;
 
 	private String staticLocation = null;
+	private String staticContentBase = null;
 
   private Boolean lastn_enabled = false;
   private boolean store_resource_in_lucene_index_enabled = false;
@@ -92,6 +93,14 @@ public class AppProperties {
 
 	public void setStaticLocation(String staticLocation) {
 		this.staticLocation = staticLocation;
+	}
+
+	public String getStaticContentBase() {
+		return staticContentBase;
+	}
+
+	public void setStaticContentBase(String staticContentBase) {
+		this.staticContentBase = staticContentBase;
 	}
 
 
