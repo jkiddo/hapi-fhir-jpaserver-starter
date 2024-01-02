@@ -156,8 +156,6 @@ class ExampleServerR4IT implements IServerSupport{
 
 		assertEquals(1, result.getTotal());
 
-		//GET http://localhost:50297/fhir/Organization?_list=23&identifier=urn%3Aoid%3A2.51.1.3%7C' |
-
 	}
 
 	private IBaseResource loadRec(String theLocation, FhirContext theCtx, IGenericClient theClient) throws IOException {
