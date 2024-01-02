@@ -152,6 +152,7 @@ class ExampleServerR4IT implements IServerSupport{
 
 		Bundle result = ourClient.search().forResource(Organization.class)
 			.whereMap(Map.of("_list", List.of(listResource.getIdElement().getIdPart())))
+			.and(Organization.IDENTIFIER.exactly().systemAndIdentifier("http://random.org", ""))
 			.returnBundle(Bundle.class).execute();
 
 		assertEquals(1, result.getTotal());
