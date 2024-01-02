@@ -1,10 +1,10 @@
 package ca.uhn.fhir.jpa.starter;
 
 import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.cr.config.RepositoryConfig;
 import ca.uhn.fhir.jpa.searchparam.config.NicknameServiceConfig;
 import ca.uhn.fhir.jpa.starter.cr.CrProperties;
+import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.rest.api.CacheControlDirective;
 import ca.uhn.fhir.rest.api.EncodingEnum;
 import ca.uhn.fhir.rest.api.MethodOutcome;
@@ -14,8 +14,8 @@ import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.hl7.fhir.r4.model.*;
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.r4.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -23,18 +23,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.server.LocalServerPort;
 
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static ca.uhn.fhir.util.TestUtil.waitForSize;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.opencds.cqf.fhir.utility.r4.Parameters.parameters;
 import static org.opencds.cqf.fhir.utility.r4.Parameters.stringPart;
 
@@ -140,6 +140,24 @@ class ExampleServerR4IT implements IServerSupport{
 		Parameters params = parameters(stringPart("expression", "Interval[Today() - 2 years, Today())"));
 		Parameters results = runCqlExecution(params);
 		assertTrue(results.getParameter("return").getValue() instanceof Period);
+	}
+
+	@Test
+	void testListSearch()
+	{
+
+		Organization  organization1 = (Organization) ourClient.create().resource(new Organization().addAlias("org1").addIdentifier(new Identifier().setSystem("http://random.org").setValue(UUID.randomUUID().toString()))).execute().getResource();
+		Organization  organization2 = (Organization) ourClient.create().resource(new Organization().addAlias("org2").addIdentifier(new Identifier().setSystem("http://random.org").setValue(UUID.randomUUID().toString()))).execute().getResource();
+		ListResource listResource = (ListResource) ourClient.create().resource(new ListResource().addEntry(new ListResource.ListEntryComponent().setItem(new Reference().setReference(organization1.getIdElement().toVersionless().getValue())))).execute().getResource();
+
+		Bundle result = ourClient.search().forResource(Organization.class)
+			.whereMap(Map.of("_list", List.of(listResource.getIdElement().getIdPart())))
+			.returnBundle(Bundle.class).execute();
+
+		assertEquals(1, result.getTotal());
+
+		//GET http://localhost:50297/fhir/Organization?_list=23&identifier=urn%3Aoid%3A2.51.1.3%7C' |
+
 	}
 
 	private IBaseResource loadRec(String theLocation, FhirContext theCtx, IGenericClient theClient) throws IOException {
