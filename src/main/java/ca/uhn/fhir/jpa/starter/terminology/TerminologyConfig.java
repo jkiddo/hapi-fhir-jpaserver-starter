@@ -4,11 +4,20 @@ import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.context.support.ConceptValidationOptions;
 import ca.uhn.fhir.context.support.IValidationSupport;
 import ca.uhn.fhir.context.support.ValidationSupportContext;
+import ca.uhn.fhir.context.support.ValueSetExpansionOptions;
 import ca.uhn.fhir.jpa.starter.AppProperties;
 import ca.uhn.fhir.jpa.starter.common.StarterJpaConfig;
 import ca.uhn.fhir.jpa.starter.common.validation.OnRemoteTerminologyPresent;
+import ca.uhn.fhir.rest.client.apache.ApacheRestfulClientFactory;
+import ca.uhn.fhir.rest.client.api.IRestfulClientFactory;
+import ca.uhn.fhir.rest.client.impl.RestfulClientFactory;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
+import jakarta.annotation.Nonnull;
 import org.hl7.fhir.common.hapi.validation.support.RemoteTerminologyServiceValidationSupport;
 import org.hl7.fhir.common.hapi.validation.support.ValidationSupportChain;
+import org.hl7.fhir.instance.model.api.IBaseResource;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -29,7 +38,20 @@ public class TerminologyConfig {
 		if (values.size() == 1 && "*".equalsIgnoreCase(values.iterator().next().getSystem())) {
 			var remoteSystem = values.iterator().next();
 			theValidationSupport.addValidationSupport(
-					0, new RemoteTerminologyServiceValidationSupport(theFhirContext, remoteSystem.getUrl()));
+					0, new RemoteTerminologyServiceValidationSupport(theFhirContext, remoteSystem.getUrl())
+			{
+				@Override
+				public @Nullable ValueSetExpansionOutcome expandValueSet(ValidationSupportContext theValidationSupportContext, @Nullable ValueSetExpansionOptions theExpansionOptions, @NotNull String theValueSetUrlToExpand) throws ResourceNotFoundException {
+					return super.expandValueSet(theValidationSupportContext, theExpansionOptions, theValueSetUrlToExpand);
+				}
+
+				@Override
+				public @Nullable ValueSetExpansionOutcome expandValueSet(ValidationSupportContext theValidationSupportContext, @Nullable ValueSetExpansionOptions theExpansionOptions, @NotNull IBaseResource theValueSetToExpand) {
+					return super.expandValueSet(theValidationSupportContext, theExpansionOptions, theValueSetToExpand);
+				}
+			})
+			;
+
 			return theValidationSupport;
 
 			// If there are multiple remote terminology services, then add each one to the validation chain

@@ -158,13 +158,16 @@ hapi:
     ### Flag is true by default. This flag filters resources during package installation, allowing only those resources with a valid status (e.g. active) to be installed.
     #    validate_resource_status_for_package_upload: false 
     #    install_transitive_ig_dependencies: true
-    #implementationguides:
-    ###    example from registry (packages.fhir.org)
-    #  swiss:
-    #    name: swiss.mednet.fhir
-    #    version: 0.8.0
-    #    reloadExisting: false
-    #    installMode: STORE_AND_INSTALL
+#    implementationguides:
+#    ##    example from registry (packages.fhir.org)
+#      swiss:
+#        name: ch.fhir.ig.ch-core
+#        version: 6.0.0-ballot
+#        reloadExisting: false
+#        installMode: STORE_AND_INSTALL
+#        additionalResourceFolders:
+#          - example
+#          - example2
     #      example not from registry
     #      ips_1_0_0:
     #        packageUrl: https://build.fhir.org/ig/HL7/fhir-ips/package.tgz
@@ -179,7 +182,7 @@ hapi:
     #    allowed_bundle_types: COLLECTION,DOCUMENT,MESSAGE,TRANSACTION,TRANSACTIONRESPONSE,BATCH,BATCHRESPONSE,HISTORY,SEARCHSET
     #    allow_cascading_deletes: true
     #    allow_contains_searches: true
-    #    allow_external_references: true
+    allow_external_references: true
     #    allow_multiple_delete: true
     #    allow_override_default_search_params: true
     #    auto_create_placeholder_reference_targets: false
@@ -295,10 +298,10 @@ hapi:
     #    reuse_cached_search_results_millis: 60000
     # The remote_terminology_service block is commented out by default because it requires external terminology service endpoints.
     # Uncomment and configure the block below if you need to enable remote terminology validation or mapping.
-    #remote_terminology_service:
-    #  all:
-    #    system: '*'
-    #    url: 'https://tx.fhir.org/r4/'
+    remote_terminology_service:
+      all:
+        system: '*'
+        url: 'https://tx.hl7.se/fhir'
     #  snomed:
     #    system: 'http://snomed.info/sct'
     #    url: 'https://tx.fhir.org/r4/'
